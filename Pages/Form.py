@@ -15,8 +15,7 @@ def main():
     
   if submit_button:
     save_to_txt(BillNo, ItemName, Quantity, Date, Price, CustID)
-    st.success()
-      
+    st.success()      
 
 
 def save_to_txt(BillNo, ItemName, Quantity, Date, Price, CustID):
