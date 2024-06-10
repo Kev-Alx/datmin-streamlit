@@ -9,6 +9,8 @@ st.set_page_config(
 )
 
 st.title("Customer Behavior Analysis", anchor="customer-behavior-analysis")
+st.write('hhhhh')
+st.write('ddd')
 # Upload file
 uploaded_file = st.file_uploader("Please Import Your Transaction Data", type="txt")
 if uploaded_file is None:
