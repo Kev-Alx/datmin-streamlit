@@ -1,0 +1,17 @@
+ada 2 pages
+1 page utk dashboard analisis data
+1 page utk form input bill baru
+
+Bikin sidebar utk pindah dari page 1 ke page 2
+
+Bikin form ada field
+BillNo: text
+Itemname:text
+Quantity:text
+Date:text
+Price:text
+CustomerID 
+
+Load data dari excel 
+Bikin sistem penyimpanan bill pake txt file
+
