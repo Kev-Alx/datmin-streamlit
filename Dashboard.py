@@ -5,15 +5,19 @@ from mlxtend.frequent_patterns import apriori, association_rules
 
 st.set_page_config(
     page_title="Market Basket Analysis Dashboard",
-    page_icon="✅",
     layout="wide",
 )
 
 @st.cache_data
 def get_data():
-    df = pd.read_excel('harve.xlsx')
+    df = pd.read_excel('harve.xlsx').head(260000)
     
     df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    df = df[df['Itemname'].notna()]
+    df = df[df['Quantity'] > 0]
+    df = df[df['Price'] > 0]
+    df = df.drop(columns=['CustomerID', 'Country'])
+    
     def get_season(date):
         if pd.isnull(date):
             return 'Unknown'
@@ -36,37 +40,36 @@ def get_data():
     df["Weekday"] = df["Date"].apply(get_weekend_weekdays)
     
     # Data cleaning (tidak ditampilkan di dashboard)
-    df = df[df['Itemname'].notna()]
-    df = df[df['Quantity'] > 0]
-    df = df[df['Price'] > 0]
-    df['Total_Price'] = df['Quantity'] * df['Price']
     
     return df
 
 def perform_mba(df, min_support=0.01, min_confidence=0.5):
-    # Prepare data for MBA
-    basket = df.groupby(['BillNo', 'Itemname'])['Quantity'].sum().unstack().fillna(0)
-    basket = basket.applymap(lambda x: 1 if x > 0 else 0)
+    item_counts = df['Itemname'].value_counts(ascending=False)
+    filtered_items = item_counts.loc[item_counts > 1].reset_index()['index']
+    df = df[df['Itemname'].isin(filtered_items)]
+
+    bill_counts = df['BillNo'].value_counts(ascending=False)
+    filtered_bills = bill_counts.loc[bill_counts > 1].reset_index()['index']
+    df = df[df['BillNo'].isin(filtered_bills)]
     
-    # Generate frequent itemsets and association rules
-    frequent_itemsets = apriori(basket, min_support=min_support, use_colnames=True)
-    rules = association_rules(frequent_itemsets, metric="confidence", min_threshold=min_confidence)
+    pivot_table = pd.pivot_table(df[['BillNo','Itemname']], index='BillNo', columns='Itemname', aggfunc=lambda x: True, fill_value=False)
     
-    return rules
+    frequent_itemsets = apriori(pivot_table, min_support=min_support,use_colnames=True)
+    
+    rules = association_rules(frequent_itemsets, "confidence", min_threshold = min_confidence)
+    
+    return rules.sort_values(by=['confidence', 'support'])
 
 df = get_data()
-
 st.title("Market Basket Analysis Dashboard")
 
 # Filters
 item_filter = st.selectbox("Select the Item", ['All'] + list(pd.unique(df["Itemname"])))
-season_filter = st.selectbox("Select the Season", ['All'] + list(pd.unique(df["Season"])))
-weekday_filter = st.selectbox("Select the Weekday", ['All'] + list(pd.unique(df["Weekday"])))
+season_filter = st.selectbox("Select the Season", ['All'] + ['Summer', 'Spring', 'Autumn', 'Winter'])
+weekday_filter = st.selectbox("Select the Weekday", ['All'] + ['Weekday', 'Weekend'])
 
 # Filter data
 filtered_df = df.copy()
-if item_filter != 'All':
-    filtered_df = filtered_df[filtered_df["Itemname"] == item_filter]
 if season_filter != 'All':
     filtered_df = filtered_df[filtered_df["Season"] == season_filter]
 if weekday_filter != 'All':
@@ -74,20 +77,23 @@ if weekday_filter != 'All':
 
 # Perform MBA on filtered data
 rules = perform_mba(filtered_df)
-
+# rules = df
+if item_filter != 'All':
+    rules = rules[rules['antecedents'].apply(lambda x: item_filter in x)]
 # Display association rules
 st.subheader("Association Rules")
 st.dataframe(rules)
 
-# Display top 5 upsell rules
-st.subheader("Top 5 Upsell Rules")
-upsell_rules = rules[rules['lift'] > 1].sort_values('lift', ascending=False).head(5)
-st.dataframe(upsell_rules)
-
-# Display top 5 cross-sell rules
 st.subheader("Top 5 Cross-sell Rules")
 crosssell_rules = rules[rules['lift'] > 1].sort_values('support', ascending=False).head(5)
 st.dataframe(crosssell_rules)
+
+# Display top 5 upsell rules
+st.subheader("Top 5 Upsell Rules")
+upselling_rules = rules[(rules['antecedents'].apply(len) == 1) & (rules['consequents'].apply(len) > 1)]
+
+upselling_rules = upselling_rules.sort_values(by=['confidence', 'support'], ascending=False).head(5)
+st.dataframe(upselling_rules)
 
 # Display interpretation
 if not rules.empty:
